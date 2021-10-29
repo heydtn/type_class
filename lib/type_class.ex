@@ -154,7 +154,9 @@ defmodule TypeClass do
 
         TypeClass.run_where!()
         TypeClass.Dependency.run()
-        TypeClass.Property.ensure!()
+        if !TypeClass.bypass?(__MODULE__) do
+          TypeClass.Property.ensure!()
+        end
       end
     end
   end
@@ -251,6 +253,9 @@ defmodule TypeClass do
       end
 
       cond do
+        TypeClass.bypass?(unquote(class)) ->
+          :ok
+
         unquote(class).__force_type_class__() ->
           IO.warn("""
           The type class #{unquote(class)} has been forced to bypass \
@@ -521,5 +526,20 @@ defmodule TypeClass do
   @doc "Variant of `conforms/2` that can be called within a data module"
   defmacro conforms(opts) do
     quote do: conforms(__MODULE__, unquote(opts))
+  end
+
+  def bypass?(class) do
+    inclusions =
+      Application.get_env(:type_class, :conforms, [])
+      |> Keyword.get(:include, [])
+
+    result =
+      Enum.any?(inclusions, fn inclusion ->
+        class
+        |> Atom.to_string()
+        |> Regex.match?(inclusion)
+      end)
+
+    !result
   end
 end
